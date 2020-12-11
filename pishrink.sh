@@ -163,7 +163,7 @@ Usage: $0 [-adhrspvzZ] imagefile.img [newimagefile.img]
   -z         Compress image after shrinking with gzip
   -Z         Compress image after shrinking with xz
   -a         Compress image in parallel using multiple cores
-  -p         Remove logs, apt archives, dhcp leases and ssh hostkeys
+  -p         Remove logs, apt archives, dhcp leases, ssh hostkeys and users bash history
   -d         Write debug messages in a debug log file
 EOM
 	echo "$help"
@@ -313,10 +313,11 @@ else
 fi
 
 if [[ $prep == true ]]; then
-  info "Syspreping: Removing logs, apt archives, dhcp leases and ssh hostkeys"
+  info "Syspreping: Removing logs, apt archives, dhcp leases, ssh hostkeys and users bash history"
   mountdir=$(mktemp -d)
   mount "$loopback" "$mountdir"
   rm -rvf $mountdir/var/cache/apt/archives/* $mountdir/var/lib/dhcpcd5/* $mountdir/var/log/* $mountdir/var/tmp/* $mountdir/tmp/* $mountdir/etc/ssh/*_host_*
+  find $mountdir/home/ -name ".bash_history" -type f -exec rm -vf {} \;
   umount "$mountdir"
 fi
 
