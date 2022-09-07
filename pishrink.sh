@@ -320,7 +320,15 @@ if [[ $prep == true ]]; then
   mount "$loopback" "$mountdir"
 
   # Remove unwanted cache, logs, sensitive data
-  rm -rvf $mountdir/var/cache/apt/archives/* $mountdir/var/lib/dhcpcd5/* $mountdir/var/log/* $mountdir/var/tmp/* $mountdir/tmp/* $mountdir/etc/ssh/*_host_*
+  rm -rvf $mountdir/var/cache/apt/archives/* \
+          $mountdir/var/lib/dhcpcd5/* \
+          $mountdir/var/log/* \
+          $mountdir/var/tmp/* \
+          $mountdir/tmp/* \
+          $mountdir/etc/ssh/*_host_*
+
+  # remove users' pip cache if it exists
+  find -E "$mountdir" -regex '.*/(home/.*|root)/\.cache/pip' -type d -exec rm -vrf {} +;
 
   # Remove any user's bash session history
   find -E "$mountdir" -regex '.*/(home/.*|root)/\.bash_history[0-9]*' -type f -exec rm -vf {} \;
