@@ -317,7 +317,8 @@ if [[ $prep == true ]]; then
   mountdir=$(mktemp -d)
   mount "$loopback" "$mountdir"
   rm -rvf $mountdir/var/cache/apt/archives/* $mountdir/var/lib/dhcpcd5/* $mountdir/var/log/* $mountdir/var/tmp/* $mountdir/tmp/* $mountdir/etc/ssh/*_host_*
-  find -E "$mountdir" -regex '.*/(home/.*|root)/.bash_history[0-9]*' -type f -exec rm -vf {} \;
+  find -E "$mountdir" -regex '.*/(home/.*|root)/\.bash_history[0-9]*' -type f -exec rm -vf {} \;
+  find -E "$mountdir" -regex '.*/(home/.*|root)/\.bash_sessions' -type d -exec rm -vrf {} +;
   umount "$mountdir"
 fi
 
