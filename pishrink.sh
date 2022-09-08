@@ -335,8 +335,11 @@ if [[ $prep == true ]]; then
   find -E "$mountdir" -regex '.*/(home/.*|root)/\.bash_sessions' -type d -exec rm -vrf {} +;
 
   # manually perform systemctl enable regenerate_ssh_host_keys.service
-  ln -s /lib/systemd/system/regenerate_ssh_host_keys.service \
-        "$mountdir/etc/systemd/system/multi-user.target.wants/regenerate_ssh_host_keys.service"
+  if [ -f "$mountdir/lib/systemd/system/regenerate_ssh_host_keys.service" ]; then
+    # note: this must be an absolute path as if it was chroot'ed
+    ln -s /lib/systemd/system/regenerate_ssh_host_keys.service \
+          "$mountdir/etc/systemd/system/multi-user.target.wants/regenerate_ssh_host_keys.service"
+  fi
 
   # if raspi-config use, make sure it doesn't fill up an entire SD card partition
   # allows for raw clones across different manufacturers
