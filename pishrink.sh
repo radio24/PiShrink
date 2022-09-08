@@ -338,6 +338,14 @@ if [[ $prep == true ]]; then
   ln -s /lib/systemd/system/regenerate_ssh_host_keys.service \
         "$mountdir/etc/systemd/system/multi-user.target.wants/regenerate_ssh_host_keys.service"
 
+  # if raspi-config use, make sure it doesn't fill up an entire SD card partition
+  # allows for raw clones across different manufacturers
+  if [ -f "$mountdir/usr/lib/raspi-config/init_resize.sh" ]; then
+    # shellcheck disable=SC2016
+    sed -i 's#TARGET_END=$((ROOT_DEV_SIZE - 1))#TARGET_END=$((ROOT_DEV_SIZE / 100 * 92))#' \
+      "$mountdir/usr/lib/raspi-config/init_resize.sh"
+  fi
+
   # unmount filesystem image
   umount "$mountdir"
 fi
