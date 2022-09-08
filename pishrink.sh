@@ -1,6 +1,6 @@
 #!/bin/bash
 
-version="v0.2.0"
+version="v0.2.1"
 
 CURRENT_DIR="$(pwd)"
 SCRIPTNAME="${0##*/}"
@@ -315,10 +315,22 @@ fi
 if [[ $prep == true ]]; then
   info "Syspreping: Removing logs, apt archives, dhcp leases, ssh hostkeys and users bash history"
   mountdir=$(mktemp -d)
+
+  # Temporarily mount image to manipulate internal files
   mount "$loopback" "$mountdir"
+
+  # Remove unwanted cache, logs, sensitive data
   rm -rvf $mountdir/var/cache/apt/archives/* $mountdir/var/lib/dhcpcd5/* $mountdir/var/log/* $mountdir/var/tmp/* $mountdir/tmp/* $mountdir/etc/ssh/*_host_*
+
+  # Remove any user's bash session history
   find -E "$mountdir" -regex '.*/(home/.*|root)/\.bash_history[0-9]*' -type f -exec rm -vf {} \;
   find -E "$mountdir" -regex '.*/(home/.*|root)/\.bash_sessions' -type d -exec rm -vrf {} +;
+
+  # manually perform systemctl enable regenerate_ssh_host_keys.service
+  ln -s /lib/systemd/system/regenerate_ssh_host_keys.service \
+        "$mountdir/etc/systemd/system/multi-user.target.wants/regenerate_ssh_host_keys.service"
+
+  # unmount filesystem image
   umount "$mountdir"
 fi
 
