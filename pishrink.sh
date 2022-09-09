@@ -328,11 +328,11 @@ if [[ $prep == true ]]; then
           $mountdir/etc/ssh/*_host_*
 
   # remove users' pip cache if it exists
-  find -E "$mountdir" -regex '.*/(home/.*|root)/\.cache/pip' -type d -exec rm -vrf {} +;
+  find "$mountdir" -regextype egrep -regex '.*/(home/.*|root)/\.cache/pip' -type d -exec rm -vrf {} +;
 
   # Remove any user's bash session history
-  find -E "$mountdir" -regex '.*/(home/.*|root)/\.bash_history[0-9]*' -type f -exec rm -vf {} \;
-  find -E "$mountdir" -regex '.*/(home/.*|root)/\.bash_sessions' -type d -exec rm -vrf {} +;
+  find "$mountdir" -regextype egrep -regex '.*/(home/.*|root)/\.bash_history[0-9]*' -type f -exec rm -vf {} \;
+  find "$mountdir" -regextype egrep -regex '.*/(home/.*|root)/\.bash_sessions' -type d -exec rm -vrf {} +;
 
   # manually perform systemctl enable regenerate_ssh_host_keys.service
   if [ -f "$mountdir/lib/systemd/system/regenerate_ssh_host_keys.service" ]; then
