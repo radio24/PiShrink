@@ -59,7 +59,7 @@ function checkFilesystem() {
 	  e2fsck -fy -b 32768 "$loopback"
 	  (( $? < 4 )) && return
 	fi
-	error $LINENO "Filesystem recoveries failed. Giving up..."
+	error "Filesystem recoveries failed. Giving up..."
 	exit 9
 }
 
@@ -153,9 +153,9 @@ help() {
 Usage: $0 [-acdhrspvzZ] imagefile.img [newimagefile.img]
 
   -a         Compress image in parallel using multiple cores (don't combine with -c)
-	-c         Compress image after shrinking with gzip (don't combine with -a)
+  -c         Compress image after shrinking with gzip (don't combine with -a)
   -d         Write debug messages in a debug log file
-	-h         This help screen
+  -h         This help screen
   -r         Use advanced filesystem repair option if the normal one fails		
   -s         Don't expand filesystem when image is booted the first time
   -p         Remove logs, apt archives, dhcp leases, ssh hostkeys and users bash history	
@@ -212,11 +212,11 @@ if [[ -z "$img" ]]; then
 fi
 
 if [[ ! -f "$img" ]]; then
-  error $LINENO "$img is not a file..."
+  error "$img is not a file..."
   exit 2
 fi
 if (( EUID != 0 )); then
-  error $LINENO "You need to be running as root."
+  error "You need to be running as root."
   exit 3
 fi
 
@@ -233,7 +233,7 @@ if [[ -n $ziptool ]]; then
 	# WE HAVE TO FIX THAT - see https://www.shellcheck.net/wiki/SC2199
 	# shellcheck disable=SC2199
 	if [[ ! " ${ZIPTOOLS[@]} " =~ $ziptool ]]; then
-		error $LINENO "$ziptool is an unsupported ziptool."
+		error "$ziptool is an unsupported ziptool."
 		exit 17
 	else
 		if [[ $parallel == true && $ziptool == "gzip" ]]; then
@@ -248,7 +248,7 @@ fi
 for command in $REQUIRED_TOOLS; do
   command -v "$command" >/dev/null 2>&1
   if (( $? != 0 )); then
-    error $LINENO "$command is not installed."
+    error "$command is not installed."
     exit 4
   fi
 done
@@ -262,7 +262,7 @@ if [ -n "$2" ]; then
   info "Copying $1 to $f..."
   cp --reflink=auto --sparse=always "$1" "$f"
   if (( $? != 0 )); then
-    error $LINENO "Could not copy file..."
+    error "Could not copy file..."
     exit 5
   fi
   old_owner=$(stat -c %u:%g "$1")
@@ -279,7 +279,7 @@ beforesize="$(ls -lh "$img" | cut -d ' ' -f 5)"
 parted_output="$(parted -ms "$img" unit B print)"
 rc=$?
 if (( $rc )); then
-	error $LINENO "parted failed with rc $rc"
+	error "parted failed with rc $rc"
 	info "Possibly invalid image. Run 'parted $img unit B print' manually to investigate"
 	exit 6
 fi
@@ -297,7 +297,7 @@ tune2fs_output="$(tune2fs -l "$loopback")"
 rc=$?
 if (( $rc )); then
     echo "$tune2fs_output"
-    error $LINENO "tune2fs failed. Unable to shrink this type of image"
+    error "tune2fs failed. Unable to shrink this type of image"
     exit 7
 fi
 
@@ -362,13 +362,13 @@ checkFilesystem
 
 if ! minsize=$(resize2fs -P "$loopback"); then
 	rc=$?
-	error $LINENO "resize2fs failed with rc $rc"
+	error "resize2fs failed with rc $rc"
 	exit 10
 fi
 minsize=$(cut -d ':' -f 2 <<< "$minsize" | tr -d ' ')
 logVariables $LINENO currentsize minsize
 if [[ $currentsize -eq $minsize ]]; then
-  error $LINENO "Image already shrunk to smallest size"
+  error "Image already shrunk to smallest size"
   exit 11
 fi
 
@@ -389,7 +389,7 @@ info "Shrinking filesystem"
 resize2fs -p "$loopback" $minsize
 rc=$?
 if (( $rc )); then
-  error $LINENO "resize2fs failed with rc $rc"
+  error "resize2fs failed with rc $rc"
   mount "$loopback" "$mountdir"
   mv "$mountdir/etc/rc.local.bak" "$mountdir/etc/rc.local"
   umount "$mountdir"
@@ -405,14 +405,14 @@ logVariables $LINENO partnewsize newpartend
 parted -s -a minimal "$img" rm "$partnum"
 rc=$?
 if (( $rc )); then
-	error $LINENO "parted failed with rc $rc"
+	error "parted failed with rc $rc"
 	exit 13
 fi
 
 parted -s "$img" unit B mkpart "$parttype" "$partstart" "$newpartend"
 rc=$?
 if (( $rc )); then
-	error $LINENO "parted failed with rc $rc"
+	error "parted failed with rc $rc"
 	exit 14
 fi
 
@@ -421,7 +421,7 @@ info "Shrinking image"
 endresult=$(parted -ms "$img" unit B print free)
 rc=$?
 if (( $rc )); then
-	error $LINENO "parted failed with rc $rc"
+	error "parted failed with rc $rc"
 	exit 15
 fi
 
@@ -430,7 +430,7 @@ logVariables $LINENO endresult
 truncate -s "$endresult" "$img"
 rc=$?
 if (( $rc )); then
-	error $LINENO "trunate failed with rc $rc"
+	error "trunate failed with rc $rc"
 	exit 16
 fi
 
@@ -445,7 +445,7 @@ if [[ -n $ziptool ]]; then
 		# shellcheck disable=SC2086
 		if ! $parallel_tool ${options} "$img"; then
 			rc=$?
-			error $LINENO "$parallel_tool failed with rc $rc"
+			error "$parallel_tool failed with rc $rc"
 			exit 18
 		fi
 
@@ -456,7 +456,7 @@ if [[ -n $ziptool ]]; then
 		# shellcheck disable=SC2086
 		if ! $ziptool ${options} "$img"; then
 			rc=$?
-			error $LINENO "$ziptool failed with rc $rc"
+			error "$ziptool failed with rc $rc"
 			exit 19
 		fi
 	fi
