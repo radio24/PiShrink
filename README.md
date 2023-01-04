@@ -10,26 +10,27 @@ using multiple cores is supported.
 ```
 Usage: $0 [-adhrspvzZ] imagefile.img [newimagefile.img]
 
+  -a         Compress image in parallel using multiple cores
+  -d         Write debug messages in a debug log file
+  -p         Remove logs, apt archives, dhcp leases, ssh hostkeys and bash session history
+  -r         Use advanced filesystem repair option if the normal one fails    
   -s         Don't expand filesystem when image is booted the first time
   -v         Be verbose
-  -r         Use advanced filesystem repair option if the normal one fails
   -z         Compress image after shrinking with gzip
   -Z         Compress image after shrinking with xz
-  -a         Compress image in parallel using multiple cores
-  -p         Remove logs, apt archives, dhcp leases, ssh hostkeys and bash session history
-  -d         Write debug messages in a debug log file
+
 ```
 
 If you specify the `newimagefile.img` parameter, the script will make a copy of `imagefile.img` and work off that. You will need enough space to make a full copy of the image to use that option.
 
+* `-a` will use option -f9 for pigz and option -T0 for xz and compress in parallel.
+* `-d` will create a logfile `pishrink.log` which may help for problem analysis.
+* `-p` will remove logs, apt archives, dhcp leases, ssh hostkeys and bash session history.
+* `-r` will attempt to repair the filesystem using additional options if the normal repair fails
 * `-s` prevents automatic filesystem expansion on the images next boot
 * `-v` enables more verbose output
-* `-r` will attempt to repair the filesystem using additional options if the normal repair fails
 * `-z` will compress the image after shrinking using gzip. `.gz` extension will be added to the filename.
 * `-Z` will compress the image after shrinking using xz. `.xz` extension will be added to the filename.
-* `-a` will use option -f9 for pigz and option -T0 for xz and compress in parallel.
-* `-p` will remove logs, apt archives, dhcp leases, ssh hostkeys and bash session history.
-* `-d` will create a logfile `pishrink.log` which may help for problem analysis.
 
 Default options for compressors can be overwritten by defining PISHRINK_GZIP or PSHRINK_XZ environment variables for gzip and xz.
 
@@ -45,7 +46,7 @@ If using Ubuntu, you will likely see an error about `e2fsck` being out of date a
 ## Installation ##
 
 ```bash
-wget https://raw.githubusercontent.com/Drewsif/PiShrink/master/pishrink.sh
+wget https://raw.githubusercontent.com/radio24/PiShrink/master/pishrink.sh
 chmod +x pishrink.sh
 sudo mv pishrink.sh /usr/local/bin
 ```
