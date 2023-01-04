@@ -1,27 +1,22 @@
 #!/bin/bash
 # shellcheck disable=SC2004,SC2012,SC2181
 
-version="v0.5.2"
+#Colors
+RED='\033[1;31m'
+GREEN='\033[1;32m'
+WHITE='\033[1;37m'
+NOCOLOR='\033[0m'
 
+#Other variables
+version="v0.5.2"
 CURRENT_DIR="$(pwd)"
 SCRIPTNAME="${0##*/}"
-#MYNAME="${SCRIPTNAME%.*}"
 LOGFILE="${CURRENT_DIR}/${SCRIPTNAME%.*}.log"
 REQUIRED_TOOLS="parted losetup tune2fs md5sum e2fsck resize2fs"
 ZIPTOOLS=("gzip pigz xz")
 declare -A ZIP_PARALLEL_TOOL=( [gzip]="pigz" [xz]="xz" ) # parallel zip tool to use in parallel mode
 declare -A ZIP_PARALLEL_OPTIONS=( [pigz]="-f9" [xz]="-T0" ) # options for zip tools in parallel mode
 declare -A ZIPEXTENSIONS=( [gzip]="gz" [xz]="xz" ) # extensions of zipped files
-
-function info() {
-	echo "$SCRIPTNAME: $1 ..."
-}
-
-function error() {
-	echo -n "$SCRIPTNAME: ERROR occurred in line $1: "
-	shift
-	echo "$@"
-}
 
 function cleanup() {
 	if losetup "$loopback" &>/dev/null; then
@@ -47,11 +42,11 @@ function logVariables() {
 }
 
 function checkFilesystem() {
-	info "Checking filesystem"
+	echo -e "${GREEN}Checking filesystemy${NOCOLOR}"
 	e2fsck -pf "$loopback"
 	(( $? < 4 )) && return
-	info "Filesystem error detected!"
-	info "Trying to recover corrupted filesystem"
+	echo -e "${REED}Filesystem error detected!${NOCOLOR}"
+	echo -e "${REED}Trying to recover corrupted filesystem${NOCOLOR}"
 	e2fsck -y "$loopback"
 	(( $? < 4 )) && return
 	if [[ $repair == true ]]; then
@@ -59,7 +54,7 @@ function checkFilesystem() {
 	  e2fsck -fy -b 32768 "$loopback"
 	  (( $? < 4 )) && return
 	fi
-	error "Filesystem recoveries failed. Giving up..."
+	echo -e "${REED}Filesystem recoveries failed. Giving up...${NOCOLOR}"
 	exit 9
 }
 
@@ -69,7 +64,7 @@ function set_autoexpand() {
   partprobe "$loopback"
   mount "$loopback" "$mountdir"
   if [ ! -d "$mountdir/etc" ]; then
-    info "/etc not found, autoexpand will not be enabled"
+    echo -e "${REED}/etc not found, autoexpand will not be enabled${NOCOLOR}"
     umount "$mountdir"
     return
 	fi
@@ -194,13 +189,13 @@ done
 shift $((OPTIND-1))
 
 if [ "$debug" = true ]; then
-	info "Creating log file $LOGFILE"
+	echo -e "${GREEN}Creating log file $LOGFILE${NOCOLOR}"
 	rm "$LOGFILE" &>/dev/null
 	exec 1> >(stdbuf -i0 -o0 -e0 tee -a "$LOGFILE" >&1)
 	exec 2> >(stdbuf -i0 -o0 -e0 tee -a "$LOGFILE" >&2)
 fi
 
-echo "${0##*/} $version"
+echo -e "${GREEN}${0##*/} $version${NOCOLOR}"
 
 #Args
 src="$1"
@@ -212,11 +207,11 @@ if [[ -z "$img" ]]; then
 fi
 
 if [[ ! -f "$img" ]]; then
-  error "$img is not a file..."
+  echo -e "${RED}$img is not a file...${NOCOLOR}"
   exit 2
 fi
 if (( EUID != 0 )); then
-  error "You need to be running as root."
+  echo -e "${RED}You need to be running as root.${NOCOLOR}"
   exit 3
 fi
 
@@ -233,7 +228,7 @@ if [[ -n $ziptool ]]; then
 	# WE HAVE TO FIX THAT - see https://www.shellcheck.net/wiki/SC2199
 	# shellcheck disable=SC2199
 	if [[ ! " ${ZIPTOOLS[@]} " =~ $ziptool ]]; then
-		error "$ziptool is an unsupported ziptool."
+		echo -e "${RED}$ziptool is an unsupported ziptool.${NOCOLOR}"
 		exit 17
 	else
 		if [[ $parallel == true && $ziptool == "gzip" ]]; then
@@ -248,7 +243,7 @@ fi
 for command in $REQUIRED_TOOLS; do
   command -v "$command" >/dev/null 2>&1
   if (( $? != 0 )); then
-    error "$command is not installed."
+    echo -e "${RED}$command is not installed.${NOCOLOR}"
     exit 4
   fi
 done
@@ -259,10 +254,10 @@ if [ -n "$2" ]; then
   if [[ -n $ziptool && "${f##*.}" == "${ZIPEXTENSIONS[$ziptool]}" ]]; then	# remove zip extension if zip requested because zip tool will complain about extension
     f="${f%.*}"
   fi
-  info "Copying $1 to $f..."
+  echo -e "${GREEN}Copying $1 to $f...${NOCOLOR}"
   cp --reflink=auto --sparse=always "$1" "$f"
   if (( $? != 0 )); then
-    error "Could not copy file..."
+    echo -e "${RED}Could not copy file...${NOCOLOR}"
     exit 5
   fi
   old_owner=$(stat -c %u:%g "$1")
@@ -274,13 +269,13 @@ fi
 trap cleanup EXIT
 
 #Gather info
-info "Gathering data"
+echo -e "${GREEN}Gathering data${NOCOLOR}"
 beforesize="$(ls -lh "$img" | cut -d ' ' -f 5)"
 parted_output="$(parted -ms "$img" unit B print)"
 rc=$?
 if (( $rc )); then
-	error "parted failed with rc $rc"
-	info "Possibly invalid image. Run 'parted $img unit B print' manually to investigate"
+	echo -e "${RED}parted failed with rc $rc${NOCOLOR}"
+	echo -e "${RED}Possibly invalid image. Run 'parted $img unit B print' manually to investigate${NOCOLOR}"
 	exit 6
 fi
 partnum="$(echo "$parted_output" | tail -n 1 | cut -d ':' -f 1)"
@@ -296,8 +291,8 @@ loopback="$(losetup -f --show -o "$partstart" "$img")"
 tune2fs_output="$(tune2fs -l "$loopback")"
 rc=$?
 if (( $rc )); then
-    echo "$tune2fs_output"
-    error "tune2fs failed. Unable to shrink this type of image"
+    echo -e "${RED}$tune2fs_output${NOCOLOR}"
+    echo -e "${RED}tune2fs failed. Unable to shrink this type of image${NOCOLOR}"
     exit 7
 fi
 
@@ -308,15 +303,15 @@ logVariables $LINENO beforesize parted_output partnum partstart parttype tune2fs
 
 #Check if we should make pi expand rootfs on next boot
 if [ "$parttype" == "logical" ]; then
-  echo "WARNING: PiShrink does not yet support autoexpanding of this type of image"
+  echo -e "${RED}WARNING: PiShrink does not yet support autoexpanding of this type of image${NOCOLOR}"
 elif [ "$should_skip_autoexpand" = false ]; then
   set_autoexpand
 else
-  echo "Skipping autoexpanding process..."
+  echo -e "${RED}Skipping autoexpanding process...${NOCOLOR}"
 fi
 
 if [[ $prep == true ]]; then
-  info "Syspreping: Removing logs, apt archives, dhcp leases and users bash history"
+  echo -e "${GREEN}Syspreping: Removing logs, apt archives, dhcp leases and users bash history${NOCOLOR}"
   mountdir=$(mktemp -d)
 
   # Temporarily mount image to manipulate internal files
@@ -362,13 +357,13 @@ checkFilesystem
 
 if ! minsize=$(resize2fs -P "$loopback"); then
 	rc=$?
-	error "resize2fs failed with rc $rc"
+	echo -e "${RED}resize2fs failed with rc $rc${NOCOLOR}"
 	exit 10
 fi
 minsize=$(cut -d ':' -f 2 <<< "$minsize" | tr -d ' ')
 logVariables $LINENO currentsize minsize
 if [[ $currentsize -eq $minsize ]]; then
-  error "Image already shrunk to smallest size"
+  echo -e "${RED}Image already shrunk to smallest size${NOCOLOR}"
   exit 11
 fi
 
@@ -384,12 +379,12 @@ done
 logVariables $LINENO minsize
 
 #Shrink filesystem
-info "Shrinking filesystem"
+echo -e "${GREEN}Shrinking filesystem${NOCOLOR}"
 # shellcheck disable=SC2086
 resize2fs -p "$loopback" $minsize
 rc=$?
 if (( $rc )); then
-  error "resize2fs failed with rc $rc"
+  echo -e "${RED}resize2fs failed with rc $rc${NOCOLOR}"
   mount "$loopback" "$mountdir"
   mv "$mountdir/etc/rc.local.bak" "$mountdir/etc/rc.local"
   umount "$mountdir"
@@ -405,23 +400,23 @@ logVariables $LINENO partnewsize newpartend
 parted -s -a minimal "$img" rm "$partnum"
 rc=$?
 if (( $rc )); then
-	error "parted failed with rc $rc"
+	echo -e "${RED}parted failed with rc $rc${NOCOLOR}"
 	exit 13
 fi
 
 parted -s "$img" unit B mkpart "$parttype" "$partstart" "$newpartend"
 rc=$?
 if (( $rc )); then
-	error "parted failed with rc $rc"
+	echo -e "${RED}parted failed with rc $rc${NOCOLOR}"
 	exit 14
 fi
 
 #Truncate the file
-info "Shrinking image"
+echo -e "${GREEN}Shrinking image${NOCOLOR}"
 endresult=$(parted -ms "$img" unit B print free)
 rc=$?
 if (( $rc )); then
-	error "parted failed with rc $rc"
+	echo -e "${RED}parted failed with rc $rc${NOCOLOR}"
 	exit 15
 fi
 
@@ -430,7 +425,7 @@ logVariables $LINENO endresult
 truncate -s "$endresult" "$img"
 rc=$?
 if (( $rc )); then
-	error "trunate failed with rc $rc"
+	echo -e "${RED}truncate failed with rc $rc${NOCOLOR}"
 	exit 16
 fi
 
@@ -441,22 +436,22 @@ if [[ -n $ziptool ]]; then
 		options="${ZIP_PARALLEL_OPTIONS[$ziptool]}"
 		[[ $verbose == true ]] && options="$options -v" # add verbose flag if requested
 		parallel_tool="${ZIP_PARALLEL_TOOL[$ziptool]}"
-		info "Using $parallel_tool on the shrunk image"
+		echo -e "${GREEN}Using $parallel_tool on the shrunk image${NOCOLOR}"
 		# shellcheck disable=SC2086
 		if ! $parallel_tool ${options} "$img"; then
 			rc=$?
-			error "$parallel_tool failed with rc $rc"
+			echo -e "${RED}$parallel_tool failed with rc $rc${NOCOLOR}"
 			exit 18
 		fi
 
 	else # sequential
 		[[ "$ziptool" == "gzip" ]] && options="-9"
 		[[ $verbose == true ]] && options="$options -v" # add verbose flag if requested
-		info "Using $ziptool on the shrunk image"
+		echo -e "${GREEN}Using $ziptool on the shrunk image${NOCOLOR}"
 		# shellcheck disable=SC2086
 		if ! $ziptool ${options} "$img"; then
 			rc=$?
-			error "$ziptool failed with rc $rc"
+			echo -e "${RED}$ziptool failed with rc $rc${NOCOLOR}"
 			exit 19
 		fi
 	fi
@@ -466,4 +461,4 @@ fi
 aftersize=$(ls -lh "$img" | cut -d ' ' -f 5)
 logVariables $LINENO aftersize
 
-info "Shrunk $img from $beforesize to $aftersize"
+echo -e "${GREEN}Shrunk $img from $beforesize to $aftersize${NOCOLOR}"
