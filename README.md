@@ -10,34 +10,34 @@ using multiple cores is supported.
 ```
 Usage: $0 [-adhrspvzZ] imagefile.img [newimagefile.img]
 
+  -a         Compress image in parallel using multiple cores (don't combine with -c)
+  -c         Compress image after shrinking with gzip (don't combine with -a)
+  -d         Write debug messages in a debug log file
+  -p         Remove logs, apt archives, dhcp leases and bash session history  
+  -r         Use advanced filesystem repair option if the normal one fails
   -s         Don't expand filesystem when image is booted the first time
   -v         Be verbose
-  -r         Use advanced filesystem repair option if the normal one fails
-  -z         Compress image after shrinking with gzip
+  -z         Compress image after shrinking with pigz (uses threads)
   -Z         Compress image after shrinking with xz
-  -a         Compress image in parallel using multiple cores
-  -p         Remove logs, apt archives, dhcp leases, ssh hostkeys and bash session history
-  -d         Write debug messages in a debug log file
 ```
 
 If you specify the `newimagefile.img` parameter, the script will make a copy of `imagefile.img` and work off that. You will need enough space to make a full copy of the image to use that option.
 
-* `-s` prevents automatic filesystem expansion on the images next boot
-* `-v` enables more verbose output
-* `-r` will attempt to repair the filesystem using additional options if the normal repair fails
+* `-a` will use option -f9 for pigz and option -T0 for xz and compress in parallel (doesn't work with -c).
+* `-c` will use option -9 for gzip (doesn't work with -a).
+* `-d` will create a logfile `pishrink.log` which may help for problem analysis.
+* `-p` will remove logs, apt archives, dhcp leases and bash session history.
+* `-r` will attempt to repair the filesystem using additional options if the normal repair fails.
+* `-s` prevents automatic filesystem expansion on the images next boot.
+* `-v` enables more verbose output.
 * `-z` will compress the image after shrinking using gzip. `.gz` extension will be added to the filename.
 * `-Z` will compress the image after shrinking using xz. `.xz` extension will be added to the filename.
-* `-a` will use option -f9 for pigz and option -T0 for xz and compress in parallel.
-* `-p` will remove logs, apt archives, dhcp leases, ssh hostkeys and bash session history.
-* `-d` will create a logfile `pishrink.log` which may help for problem analysis.
-
-Default options for compressors can be overwritten by defining PISHRINK_GZIP or PSHRINK_XZ environment variables for gzip and xz.
 
 ## Prerequisites ##
 
 If you are running PiShrink in VirtualBox you will likely encounter an error if you
 attempt to use VirtualBox's "Shared Folder" feature. You can copy the image you wish to
-shrink on to the VM from a Shared Folder, but shrinking directctly from the Shared Folder
+shrink on to the VM from a Shared Folder, but shrinking directly from the Shared Folder
 is know to cause issues.
 
 If using Ubuntu, you will likely see an error about `e2fsck` being out of date and `metadata_csum`. The simplest fix for this is to use Ubuntu 16.10 and up, as it will save you a lot of hassle in the long run.

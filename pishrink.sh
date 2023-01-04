@@ -1,15 +1,16 @@
 #!/bin/bash
+# shellcheck disable=SC2004,SC2012,SC2181
 
-version="v0.4.2"
+version="v0.5.2"
 
 CURRENT_DIR="$(pwd)"
 SCRIPTNAME="${0##*/}"
-MYNAME="${SCRIPTNAME%.*}"
+#MYNAME="${SCRIPTNAME%.*}"
 LOGFILE="${CURRENT_DIR}/${SCRIPTNAME%.*}.log"
 REQUIRED_TOOLS="parted losetup tune2fs md5sum e2fsck resize2fs"
-ZIPTOOLS=("gzip xz")
+ZIPTOOLS=("gzip pigz xz")
 declare -A ZIP_PARALLEL_TOOL=( [gzip]="pigz" [xz]="xz" ) # parallel zip tool to use in parallel mode
-declare -A ZIP_PARALLEL_OPTIONS=( [gzip]="-f9" [xz]="-T0" ) # options for zip tools in parallel mode
+declare -A ZIP_PARALLEL_OPTIONS=( [pigz]="-f9" [xz]="-T0" ) # options for zip tools in parallel mode
 declare -A ZIPEXTENSIONS=( [gzip]="gz" [xz]="xz" ) # extensions of zipped files
 
 function info() {
@@ -27,10 +28,10 @@ function cleanup() {
 		losetup -d "$loopback"
 	fi
 	if [ "$debug" = true ]; then
-		local old_owner=$(stat -c %u:%g "$src")
+		local old_owner
+		old_owner=$(stat -c %u:%g "$src")
 		chown "$old_owner" "$LOGFILE"
 	fi
-
 }
 
 function logVariables() {
@@ -49,40 +50,34 @@ function checkFilesystem() {
 	info "Checking filesystem"
 	e2fsck -pf "$loopback"
 	(( $? < 4 )) && return
-
 	info "Filesystem error detected!"
-
 	info "Trying to recover corrupted filesystem"
 	e2fsck -y "$loopback"
 	(( $? < 4 )) && return
-
-if [[ $repair == true ]]; then
-	info "Trying to recover corrupted filesystem - Phase 2"
-	e2fsck -fy -b 32768 "$loopback"
-	(( $? < 4 )) && return
-fi
+	if [[ $repair == true ]]; then
+	  info "Trying to recover corrupted filesystem - Phase 2"
+	  e2fsck -fy -b 32768 "$loopback"
+	  (( $? < 4 )) && return
+	fi
 	error $LINENO "Filesystem recoveries failed. Giving up..."
 	exit 9
-
 }
 
 function set_autoexpand() {
-    #Make pi expand rootfs on next boot
-    mountdir=$(mktemp -d)
-    partprobe "$loopback"
-    mount "$loopback" "$mountdir"
-
-    if [ ! -d "$mountdir/etc" ]; then
-        info "/etc not found, autoexpand will not be enabled"
-        umount "$mountdir"
-        return
-    fi
-
-    if [[ -f "$mountdir/etc/rc.local" ]] && [[ "$(md5sum "$mountdir/etc/rc.local" | cut -d ' ' -f 1)" != "1c579c7d5b4292fd948399b6ece39009" ]]; then
-      echo "Creating new /etc/rc.local"
-    if [ -f "$mountdir/etc/rc.local" ]; then
-        mv "$mountdir/etc/rc.local" "$mountdir/etc/rc.local.bak"
-    fi
+  #Make pi expand rootfs on next boot
+  mountdir=$(mktemp -d)
+  partprobe "$loopback"
+  mount "$loopback" "$mountdir"
+  if [ ! -d "$mountdir/etc" ]; then
+    info "/etc not found, autoexpand will not be enabled"
+    umount "$mountdir"
+    return
+	fi
+  if [[ -f "$mountdir/etc/rc.local" ]] && [[ "$(md5sum "$mountdir/etc/rc.local" | cut -d ' ' -f 1)" != "1c579c7d5b4292fd948399b6ece39009" ]]; then
+    echo "Creating new /etc/rc.local"
+  if [ -f "$mountdir/etc/rc.local" ]; then
+    mv "$mountdir/etc/rc.local" "$mountdir/etc/rc.local.bak"
+  fi
 
     #####Do not touch the following lines#####
 cat <<\EOF1 > "$mountdir/etc/rc.local"
@@ -155,16 +150,19 @@ EOF1
 help() {
 	local help
 	read -r -d '' help << EOM
-Usage: $0 [-adhrspvzZ] imagefile.img [newimagefile.img]
+Usage: $0 [-acdhrspvzZ] imagefile.img [newimagefile.img]
 
-  -s         Don't expand filesystem when image is booted the first time
-  -v         Be verbose
-  -r         Use advanced filesystem repair option if the normal one fails
-  -z         Compress image after shrinking with gzip
-  -Z         Compress image after shrinking with xz
-  -a         Compress image in parallel using multiple cores
-  -p         Remove logs, apt archives, dhcp leases, ssh hostkeys and users bash history
+  -a         Compress image in parallel using multiple cores (don't combine with -c)
+	-c         Compress image after shrinking with gzip (don't combine with -a)
   -d         Write debug messages in a debug log file
+	-h         This help screen
+  -r         Use advanced filesystem repair option if the normal one fails		
+  -s         Don't expand filesystem when image is booted the first time
+  -p         Remove logs, apt archives, dhcp leases, ssh hostkeys and users bash history	
+  -v         Be verbose
+  -z         Compress image after shrinking with pigz (uses threads)
+  -Z         Compress image after shrinking with xz
+
 EOM
 	echo "$help"
 	exit 1
@@ -178,16 +176,17 @@ verbose=false
 prep=false
 ziptool=""
 
-while getopts ":adhprsvzZ" opt; do
+while getopts ":acdhprsvzZ" opt; do
   case "${opt}" in
     a) parallel=true;;
+		c) ziptool="gzip";;
     d) debug=true;;
     h) help;;
     p) prep=true;;
     r) repair=true;;
     s) should_skip_autoexpand=true ;;
     v) verbose=true;;
-    z) ziptool="gzip";;
+    z) ziptool="pigz";;
     Z) ziptool="xz";;
     *) help;;
   esac
@@ -231,6 +230,8 @@ export LANG=POSIX
 
 # check selected compression tool is supported and installed
 if [[ -n $ziptool ]]; then
+	# WE HAVE TO FIX THAT - see https://www.shellcheck.net/wiki/SC2199
+	# shellcheck disable=SC2199
 	if [[ ! " ${ZIPTOOLS[@]} " =~ $ziptool ]]; then
 		error $LINENO "$ziptool is an unsupported ziptool."
 		exit 17
@@ -245,7 +246,7 @@ fi
 
 #Check that what we need is installed
 for command in $REQUIRED_TOOLS; do
-  command -v $command >/dev/null 2>&1
+  command -v "$command" >/dev/null 2>&1
   if (( $? != 0 )); then
     error $LINENO "$command is not installed."
     exit 4
@@ -284,6 +285,8 @@ if (( $rc )); then
 fi
 partnum="$(echo "$parted_output" | tail -n 1 | cut -d ':' -f 1)"
 partstart="$(echo "$parted_output" | tail -n 1 | cut -d ':' -f 2 | tr -d 'B')"
+# WE HAVE TO FIX THAT - see https://www.shellcheck.net/wiki/SC2143
+# shellcheck disable=SC2143
 if [ -z "$(parted -s "$img" unit B print | grep "$partstart" | grep logical)" ]; then
     parttype="primary"
 else
@@ -313,13 +316,14 @@ else
 fi
 
 if [[ $prep == true ]]; then
-  info "Syspreping: Removing logs, apt archives, dhcp leases, ssh hostkeys and users bash history"
+  info "Syspreping: Removing logs, apt archives, dhcp leases and users bash history"
   mountdir=$(mktemp -d)
 
   # Temporarily mount image to manipulate internal files
   mount "$loopback" "$mountdir"
 
   # Remove unwanted cache, logs, sensitive data
+	# shellcheck disable=SC2086
   rm -rvf $mountdir/var/cache/apt/archives/* \
           $mountdir/var/lib/dhcpcd5/* \
           $mountdir/var/log/* \
@@ -335,24 +339,23 @@ if [[ $prep == true ]]; then
   find "$mountdir" -regextype egrep -regex '.*/(home/.*|root)/\.bash_sessions' -type d -exec rm -vrf {} +;
 
   # manually perform systemctl enable regenerate_ssh_host_keys.service
-  if [ -f "$mountdir/lib/systemd/system/regenerate_ssh_host_keys.service" ]; then
+  #if [ -f "$mountdir/lib/systemd/system/regenerate_ssh_host_keys.service" ]; then
     # note: this must be an absolute path as if it was chroot'ed
-    ln -s /lib/systemd/system/regenerate_ssh_host_keys.service \
-          "$mountdir/etc/systemd/system/multi-user.target.wants/regenerate_ssh_host_keys.service"
-  fi
+  #  ln -s /lib/systemd/system/regenerate_ssh_host_keys.service \
+  #        "$mountdir/etc/systemd/system/multi-user.target.wants/regenerate_ssh_host_keys.service"
+  #fi
 
   # if raspi-config use, make sure it doesn't fill up an entire SD card partition
   # allows for raw clones across different manufacturers
-  if [ -f "$mountdir/usr/lib/raspi-config/init_resize.sh" ]; then
+  #if [ -f "$mountdir/usr/lib/raspi-config/init_resize.sh" ]; then
     # shellcheck disable=SC2016
-    sed -i 's#TARGET_END=$((ROOT_DEV_SIZE - 1))#TARGET_END=$((ROOT_DEV_SIZE / 100 * 92))#' \
-      "$mountdir/usr/lib/raspi-config/init_resize.sh"
-  fi
+  #  sed -i 's#TARGET_END=$((ROOT_DEV_SIZE - 1))#TARGET_END=$((ROOT_DEV_SIZE / 100 * 92))#' \
+  #    "$mountdir/usr/lib/raspi-config/init_resize.sh"
+  #fi
 
   # unmount filesystem image
   umount "$mountdir"
 fi
-
 
 #Make sure filesystem is ok
 checkFilesystem
@@ -382,6 +385,7 @@ logVariables $LINENO minsize
 
 #Shrink filesystem
 info "Shrinking filesystem"
+# shellcheck disable=SC2086
 resize2fs -p "$loopback" $minsize
 rc=$?
 if (( $rc )); then
@@ -433,14 +437,12 @@ fi
 # handle compression
 if [[ -n $ziptool ]]; then
 	options=""
-	envVarname="${MYNAME^^}_${ziptool^^}" # PISHRINK_GZIP or PISHRINK_XZ environment variables allow to override all options for gzip or xz
-	[[ $parallel == true ]] && options="${ZIP_PARALLEL_OPTIONS[$ziptool]}"
-	[[ -v $envVarname ]] && options="${!envVarname}" # if environment variable defined use these options
-	[[ $verbose == true ]] && options="$options -v" # add verbose flag if requested
-
 	if [[ $parallel == true ]]; then
+		options="${ZIP_PARALLEL_OPTIONS[$ziptool]}"
+		[[ $verbose == true ]] && options="$options -v" # add verbose flag if requested
 		parallel_tool="${ZIP_PARALLEL_TOOL[$ziptool]}"
 		info "Using $parallel_tool on the shrunk image"
+		# shellcheck disable=SC2086
 		if ! $parallel_tool ${options} "$img"; then
 			rc=$?
 			error $LINENO "$parallel_tool failed with rc $rc"
@@ -448,7 +450,10 @@ if [[ -n $ziptool ]]; then
 		fi
 
 	else # sequential
+		[[ "$ziptool" == "gzip" ]] && options="-9"
+		[[ $verbose == true ]] && options="$options -v" # add verbose flag if requested
 		info "Using $ziptool on the shrunk image"
+		# shellcheck disable=SC2086
 		if ! $ziptool ${options} "$img"; then
 			rc=$?
 			error $LINENO "$ziptool failed with rc $rc"
