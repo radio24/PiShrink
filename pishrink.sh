@@ -321,10 +321,11 @@ if [[ $prep == true ]]; then
 	# shellcheck disable=SC2086
   rm -rvf $mountdir/var/cache/apt/archives/* \
           $mountdir/var/lib/dhcpcd5/* \
-          $mountdir/var/log/* \
           $mountdir/var/tmp/* \
           $mountdir/tmp/* \
           $mountdir/etc/ssh/*_host_*
+	# We shouldn't remove folder because some applications will not start (for example nginx)
+	for logs in $(sudo find /var/log -type f); do sudo rm -rvf "$logs"; done
 
   # remove users' pip cache if it exists
   find "$mountdir" -regextype egrep -regex '.*/(home/.*|root)/\.cache/pip' -type d -exec rm -vrf {} +;
@@ -333,6 +334,7 @@ if [[ $prep == true ]]; then
   find "$mountdir" -regextype egrep -regex '.*/(home/.*|root)/\.bash_history[0-9]*' -type f -exec rm -vf {} \;
   find "$mountdir" -regextype egrep -regex '.*/(home/.*|root)/\.bash_sessions' -type d -exec rm -vrf {} +;
 
+	# Only with -k (to do)
   # manually perform systemctl enable regenerate_ssh_host_keys.service
   #if [ -f "$mountdir/lib/systemd/system/regenerate_ssh_host_keys.service" ]; then
     # note: this must be an absolute path as if it was chroot'ed
