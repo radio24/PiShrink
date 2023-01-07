@@ -325,7 +325,7 @@ if [[ $prep == true ]]; then
           $mountdir/tmp/* \
           $mountdir/etc/ssh/*_host_*
 	# We shouldn't remove folder because some applications will not start (for example nginx)
-	for logs in $(sudo find /var/log -type f); do sudo rm -rvf "$logs"; done
+	for logs in $(find /var/log -type f); do rm -rvf "$logs"; done
 
   # remove users' pip cache if it exists
   find "$mountdir" -regextype egrep -regex '.*/(home/.*|root)/\.cache/pip' -type d -exec rm -vrf {} +;
