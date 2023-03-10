@@ -4,7 +4,6 @@
 #Colors
 RED='\033[1;31m'
 GREEN='\033[1;32m'
-WHITE='\033[1;37m'
 NOCOLOR='\033[0m'
 
 #Other variables
@@ -23,7 +22,8 @@ function cleanup() {
 		losetup -d "$loopback"
 	fi
 	if [ "$debug" = true ]; then
-		local old_owner=$(stat -c %u:%g "$src")
+		local old_owner
+		old_owner=$(stat -c %u:%g "$src")
 		chown "$old_owner" "$LOGFILE"
 	fi
 }
@@ -226,7 +226,7 @@ export LANG=POSIX
 if [[ -n $ziptool ]]; then
 	# WE HAVE TO FIX THAT - see https://www.shellcheck.net/wiki/SC2199
 	# shellcheck disable=SC2199
-	if [[ ! " ${ZIPTOOLS[@]} " =~ $ziptool ]]; then
+	if [[ ! " ${ZIPTOOLS[*]} " =~ $ziptool ]]; then
 		echo -e "${RED}$ziptool is an unsupported ziptool.${NOCOLOR}"
 		exit 17
 	else
@@ -240,8 +240,7 @@ fi
 
 #Check that what we need is installed
 for command in $REQUIRED_TOOLS; do
-  command -v "$command" >/dev/null 2>&1
-  if (( $? != 0 )); then
+  if ! command -v "$command" >/dev/null 2>&1; then
     echo -e "${RED}$command is not installed.${NOCOLOR}"
     exit 4
   fi
@@ -254,8 +253,7 @@ if [ -n "$2" ]; then
     f="${f%.*}"
   fi
   echo -e "${GREEN}Copying $1 to $f...${NOCOLOR}"
-  cp --reflink=auto --sparse=always "$1" "$f"
-  if (( $? != 0 )); then
+  if ! cp --reflink=auto --sparse=always "$1" "$f"; then
     echo -e "${RED}Could not copy file...${NOCOLOR}"
     exit 5
   fi
@@ -269,7 +267,7 @@ trap cleanup EXIT
 
 #Gather info
 echo -e "${GREEN}Gathering data${NOCOLOR}"
-beforesize="$(ls -lh "$img" | cut -d ' ' -f 5)"
+beforesize="$(du -h "$img" | cut -f -1)"
 parted_output="$(parted -ms "$img" unit B print)"
 rc=$?
 if (( $rc )); then
@@ -324,6 +322,7 @@ if [[ $prep == true ]]; then
           $mountdir/tmp/* \
           $mountdir/etc/ssh/*_host_*
 	# We shouldn't remove folder because some applications will not start (for example nginx)
+	# shellcheck disable=SC2044
 	for logs in $(find $mountdir/var/log -type f); do rm -rvf "$logs"; done
 
   # remove users' pip cache if it exists
@@ -458,7 +457,7 @@ if [[ -n $ziptool ]]; then
 	img=$img.${ZIPEXTENSIONS[$ziptool]}
 fi
 
-aftersize=$(ls -lh "$img" | cut -d ' ' -f 5)
+aftersize="$(du -h "$img" | cut -f -1)"
 logVariables $LINENO aftersize
 
 echo -e "${GREEN}Shrunk $img from $beforesize to $aftersize${NOCOLOR}"
