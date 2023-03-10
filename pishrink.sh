@@ -23,8 +23,7 @@ function cleanup() {
 		losetup -d "$loopback"
 	fi
 	if [ "$debug" = true ]; then
-		local old_owner
-		old_owner=$(stat -c %u:%g "$src")
+		local old_owner=$(stat -c %u:%g "$src")
 		chown "$old_owner" "$LOGFILE"
 	fi
 }
@@ -151,9 +150,9 @@ Usage: $0 [-acdhrspvzZ] imagefile.img [newimagefile.img]
   -c         Compress image after shrinking with gzip (don't combine with -a)
   -d         Write debug messages in a debug log file
   -h         This help screen
-  -r         Use advanced filesystem repair option if the normal one fails		
+  -r         Use advanced filesystem repair option if the normal one fails
   -s         Don't expand filesystem when image is booted the first time
-  -p         Remove logs, apt archives, dhcp leases, ssh hostkeys and users bash history	
+  -p         Remove logs, apt archives, dhcp leases, ssh hostkeys and users bash history
   -v         Be verbose
   -z         Compress image after shrinking with pigz (uses threads)
   -Z         Compress image after shrinking with xz
@@ -325,7 +324,7 @@ if [[ $prep == true ]]; then
           $mountdir/tmp/* \
           $mountdir/etc/ssh/*_host_*
 	# We shouldn't remove folder because some applications will not start (for example nginx)
-	for logs in $(find /var/log -type f); do rm -rvf "$logs"; done
+	for logs in $(find $mountdir/var/log -type f); do rm -rvf "$logs"; done
 
   # remove users' pip cache if it exists
   find "$mountdir" -regextype egrep -regex '.*/(home/.*|root)/\.cache/pip' -type d -exec rm -vrf {} +;
