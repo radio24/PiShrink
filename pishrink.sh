@@ -44,8 +44,8 @@ function checkFilesystem() {
 	echo -e "${GREEN}Checking filesystemy${NOCOLOR}"
 	e2fsck -pf "$loopback"
 	(( $? < 4 )) && return
-	echo -e "${REED}Filesystem error detected!${NOCOLOR}"
-	echo -e "${REED}Trying to recover corrupted filesystem${NOCOLOR}"
+	echo -e "${RED}Filesystem error detected!${NOCOLOR}"
+	echo -e "${RED}Trying to recover corrupted filesystem${NOCOLOR}"
 	e2fsck -y "$loopback"
 	(( $? < 4 )) && return
 	if [[ $repair == true ]]; then
@@ -53,7 +53,7 @@ function checkFilesystem() {
 	  e2fsck -fy -b 32768 "$loopback"
 	  (( $? < 4 )) && return
 	fi
-	echo -e "${REED}Filesystem recoveries failed. Giving up...${NOCOLOR}"
+	echo -e "${RED}Filesystem recoveries failed. Giving up...${NOCOLOR}"
 	exit 9
 }
 
@@ -63,7 +63,7 @@ function set_autoexpand() {
   partprobe "$loopback"
   mount "$loopback" "$mountdir"
   if [ ! -d "$mountdir/etc" ]; then
-    echo -e "${REED}/etc not found, autoexpand will not be enabled${NOCOLOR}"
+    echo -e "${RED}/etc not found, autoexpand will not be enabled${NOCOLOR}"
     umount "$mountdir"
     return
 	fi
@@ -323,21 +323,46 @@ if [[ $prep == true ]]; then
           $mountdir/etc/ssh/*_host_*
 	# We shouldn't remove folder because some applications will not start (for example nginx)
 	# shellcheck disable=SC2044
-	for logs in $(find $mountdir/var/log -type f); do rm -rvf "$logs"; done
+	for logs in $(find "$mountdir/var/log" -type f); do rm -rvf "$logs"; done
 
-  # remove users' pip cache if it exists
+  # Remove users' pip cache if it exists
   find "$mountdir" -regextype egrep -regex '.*/(home/.*|root)/\.cache/pip' -type d -exec rm -vrf {} +;
 
   # Remove any user's bash session history
   find "$mountdir" -regextype egrep -regex '.*/(home/.*|root)/\.bash_history[0-9]*' -type f -exec rm -vf {} \;
   find "$mountdir" -regextype egrep -regex '.*/(home/.*|root)/\.bash_sessions' -type d -exec rm -vrf {} +;
 
-  # manually perform systemctl enable regenerate_ssh_host_keys.service
-  if [ -f "$mountdir/lib/systemd/system/regenerate_ssh_host_keys.service" ]; then
-  # note: this must be an absolute path as if it was chroot'ed
-    ln -s /lib/systemd/system/regenerate_ssh_host_keys.service \
-          "$mountdir/etc/systemd/system/multi-user.target.wants/regenerate_ssh_host_keys.service"
-  fi
+	# Check if openssh is enabled (taken and adapted from https://github.com/shatteredsword/PiShrink)
+	if [[ -f "$mountdir/etc/systemd/system/multi-user.target.wants/ssh.service" ]]; then
+		if [[ -f "$mountdir/lib/systemd/system/regenerate_ssh_host_keys.service" ]] && [[ -d "$mountdir/etc/systemd/system/multi-user.target.wants" ]]; then
+			if [[ ! -f "$mountdir/etc/systemd/system/multi-user.target.wants/regenerate_ssh_host_keys.service" ]]; then
+				ln -s "$mountdir/lib/systemd/system/regenerate_ssh_host_keys.service" "$mountdir/etc/systemd/system/multi-user.target.wants/regenerate_ssh_host_keys.service"
+				echo -e "${GREEN}SSH host keys remains but will be regenerated on first boot.${NOCOLOR}"
+			fi
+		else
+		# Key regeneration relies on using the host to regenerate the keys
+			if ! command -v ssh-keygen &> /dev/null; then
+				echo -e "${RED}Cannot regenerated SSH keys on first boot and cannot locate ssh-keygen command --> keeping old keys!${NOCOLOR}"
+			else
+				if [ -c /dev/hwrng ]; then dd if=/dev/hwrng of=/dev/urandom count=1 bs=4096 status=none; fi
+				rm -f "$mountdir"/etc/ssh/ssh_host_*_key*
+				echo -e "${GREEN}Regenarting SSH host keys.${NOCOLOR}"
+				ssh-keygen -A -f "$mountdir" > /dev/null
+			fi
+		fi
+	# Check if dropbear is enabled
+	elif [[ -f "$mountdir/etc/init.d/dropbear" ]]; then
+		# Key regeneration relies on using the host to regenerate the keys
+		if ! command -v dropbearkey &> /dev/null; then
+			echo -e "${RED}Cannot locate dropbearkey command --> keeping old keys!${NOCOLOR}"
+		else
+			rm -f "$mountdir"/etc/dropbear/dropbear_*_host_key
+			echo -e "${GREEN}Regenarting Dropbear keys.${NOCOLOR}"
+			dropbearkey -t rsa -f "$mountdir"/etc/dropbear/dropbear_rsa_host_key > /dev/null
+			dropbearkey -t ecdsa -f "$mountdir"/etc/dropbear/dropbear_ecdsa_host_key > /dev/null
+			dropbearkey -t ed25519 -f "$mountdir"/etc/dropbear/dropbear_ed25519_host_key > /dev/null
+		fi
+	fi
 
   # if raspi-config use, make sure it doesn't fill up an entire SD card partition
   # allows for raw clones across different manufacturers
