@@ -13,7 +13,8 @@ Usage: $0 [-adhrspvzZ] imagefile.img [newimagefile.img]
   -a         Compress image in parallel using multiple cores (don't combine with -c)
   -c         Compress image after shrinking with gzip (don't combine with -a)
   -d         Write debug messages in a debug log file
-  -p         Remove logs, apt archives, dhcp leases and bash session history  
+  -p         Remove logs, apt archives, dhcp leases, bash session history and renew ssh hostkeys (supporting
+             openssh and dropbear)
   -r         Use advanced filesystem repair option if the normal one fails
   -s         Don't expand filesystem when image is booted the first time
   -v         Be verbose
@@ -26,7 +27,8 @@ If you specify the `newimagefile.img` parameter, the script will make a copy of 
 * `-a` will use option -f9 for pigz and option -T0 for xz and compress in parallel (doesn't work with -c).
 * `-c` will use option -9 for gzip (doesn't work with -a).
 * `-d` will create a logfile `pishrink.log` which may help for problem analysis.
-* `-p` will remove logs, apt archives, dhcp leases and bash session history.
+* `-p` will remove logs, apt archives, dhcp leases, bash session history and renew ssh hostkeys (supporting
+       openssh and dropbear).
 * `-r` will attempt to repair the filesystem using additional options if the normal repair fails.
 * `-s` prevents automatic filesystem expansion on the images next boot.
 * `-v` enables more verbose output.
