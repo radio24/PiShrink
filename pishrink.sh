@@ -61,8 +61,14 @@ function set_autoexpand() {
   #Make pi expand rootfs on next boot
   mountdir=$(mktemp -d)
   partprobe "$loopback"
-  mount "$loopback" "$mountdir"
-  if [ ! -d "$mountdir/etc" ]; then
+	sleep 3
+  umount "$loopback" > /dev/null 2>&1
+  mount "$loopback" "$mountdir" -o rw
+  if (( $? != 0 )); then
+  	echo -e "${RED}Unable to mount loopback, autoexpand will not be enabled"
+    return
+  fi
+	if [ ! -d "$mountdir/etc" ]; then
     echo -e "${RED}/etc not found, autoexpand will not be enabled${NOCOLOR}"
     umount "$mountdir"
     return
