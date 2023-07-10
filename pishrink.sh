@@ -7,7 +7,7 @@ GREEN='\033[1;32m'
 NOCOLOR='\033[0m'
 
 #Other variables
-version="v0.5.2"
+version="v0.5.3"
 CURRENT_DIR="$(pwd)"
 SCRIPTNAME="${0##*/}"
 LOGFILE="${CURRENT_DIR}/${SCRIPTNAME%.*}.log"
@@ -61,8 +61,14 @@ function set_autoexpand() {
   #Make pi expand rootfs on next boot
   mountdir=$(mktemp -d)
   partprobe "$loopback"
-  mount "$loopback" "$mountdir"
-  if [ ! -d "$mountdir/etc" ]; then
+	sleep 3
+  umount "$loopback" > /dev/null 2>&1
+  mount "$loopback" "$mountdir" -o rw
+  if (( $? != 0 )); then
+  	echo -e "${RED}Unable to mount loopback, autoexpand will not be enabled"
+    return
+  fi
+	if [ ! -d "$mountdir/etc" ]; then
     echo -e "${RED}/etc not found, autoexpand will not be enabled${NOCOLOR}"
     umount "$mountdir"
     return
@@ -145,7 +151,8 @@ help() {
 	local help
 	read -r -d '' help << EOM
 Usage: $0 [-acdhrspvzZ] imagefile.img [newimagefile.img]
-
+  -0         Using zerofree to save additional space by finding unallocated blocks in an extx
+             filesystem and fills them with zeroes
   -a         Compress image in parallel using multiple cores (don't combine with -c)
   -c         Compress image after shrinking with gzip (don't combine with -a)
   -d         Write debug messages in a debug log file
@@ -168,10 +175,12 @@ repair=false
 parallel=false
 verbose=false
 prep=false
+zerofree=false
 ziptool=""
 
-while getopts ":acdhprsvzZ" opt; do
+while getopts ":0acdhprsvzZ" opt; do
   case "${opt}" in
+		0) zerofree=true;;
     a) parallel=true;;
 		c) ziptool="gzip";;
     d) debug=true;;
@@ -315,13 +324,14 @@ if [[ $prep == true ]]; then
   mount "$loopback" "$mountdir"
 
   # Remove unwanted cache, logs, sensitive data
+	# $mountdir/etc/ssh/*_host_* is not removed, according to https://github.com/Drewsif/PiShrink/pull/247/files
 	# shellcheck disable=SC2086
   rm -rvf $mountdir/var/cache/apt/archives/* \
           $mountdir/var/lib/dhcpcd5/* \
           $mountdir/var/tmp/* \
-          $mountdir/tmp/* \
-          $mountdir/etc/ssh/*_host_*
-	# We shouldn't remove folder because some applications will not start (for example nginx)
+          $mountdir/tmp/*
+					
+	# We shouldn't remove folders because some applications will not start (for example nginx)
 	# shellcheck disable=SC2044
 	for logs in $(find "$mountdir/var/log" -type f); do rm -rvf "$logs"; done
 
@@ -451,6 +461,47 @@ rc=$?
 if (( $rc )); then
 	echo -e "${RED}truncate failed with rc $rc${NOCOLOR}"
 	exit 16
+fi
+
+# Using zerofree
+if [[ $zerofree == true ]]; then
+	# Check is zerofree is already installed
+	if ! command -v "zerofree" >/dev/null 2>&1; then
+		echo -e "${RED}ZEROFREE is not installed!${NOCOLOR}"
+		while true
+		do
+			read -r -p $'\e[1;31m Would you like me to install zerofree? [Y/n]? -> \e[0m'
+			# The following line is for the prompt to appear on a new line.
+			if [[ $REPLY =~ ^[YyNn]$ ]] ; then
+				echo
+				echo
+				break
+			fi
+		done
+		if [[ $REPLY =~ ^[Yy]$ ]] ; then
+			echo -e "${GREEN}Installing zerofree${NOCOLOR}"
+			sudo apt-get install -y zerofree
+		else
+			echo -e "${RED}Cannot apply zerofree - skipping${NOCOLOR}"
+			echo ""
+		fi
+	fi
+	if command -v "zerofree" >/dev/null 2>&1; then
+		#Zero out the freespace (this code is from here: https://github.com/shatteredsword/PiShrink/commit/ed6de32a981748056fa26a41f63495264ccce300)
+		echo -e "${GREEN}Zeroing free space${NOCOLOR}"
+		LOOP_DEV=$(losetup -f)
+		losetup "$LOOP_DEV" -P "$img"
+		if [[ $verbose == true ]]; then 
+			zerofree -v "${LOOP_DEV}"p2
+		else
+			zerofree "${LOOP_DEV}"p2
+		fi
+		rc=$?
+		if (( rc )); then
+			echo -e "${RED}Zerofree failed with rc $rc - skipping"
+		fi
+		losetup -d "$LOOP_DEV"
+	fi
 fi
 
 # handle compression

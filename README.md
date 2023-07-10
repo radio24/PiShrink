@@ -8,8 +8,9 @@ using multiple cores is supported.
 ## Usage ##
 
 ```
-Usage: $0 [-adhrspvzZ] imagefile.img [newimagefile.img]
-
+Usage: pishrink.sh [-adhrspvzZ] imagefile.img [newimagefile.img]
+  -0         Using zerofree to save additional space by finding unallocated blocks in an extx
+             filesystem and fills them with zeroes
   -a         Compress image in parallel using multiple cores (don't combine with -c)
   -c         Compress image after shrinking with gzip (don't combine with -a)
   -d         Write debug messages in a debug log file
@@ -24,6 +25,8 @@ Usage: $0 [-adhrspvzZ] imagefile.img [newimagefile.img]
 
 If you specify the `newimagefile.img` parameter, the script will make a copy of `imagefile.img` and work off that. You will need enough space to make a full copy of the image to use that option.
 
+* `-0` will use zerofree to save additional space by finding unallocated blocks in an extx filesystem and 
+       fills them with zeroes
 * `-a` will use option -f9 for pigz and option -T0 for xz and compress in parallel (doesn't work with -c).
 * `-c` will use option -9 for gzip (doesn't work with -a).
 * `-d` will create a logfile `pishrink.log` which may help for problem analysis.
