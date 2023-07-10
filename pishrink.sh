@@ -491,7 +491,11 @@ if [[ $zerofree == true ]]; then
 		echo -e "${GREEN}Zeroing free space${NOCOLOR}"
 		LOOP_DEV=$(losetup -f)
 		losetup "$LOOP_DEV" -P "$img"
-		zerofree "${LOOP_DEV}"p2
+		if [[ $verbose == true ]]; then 
+			zerofree -v "${LOOP_DEV}"p2
+		else
+			zerofree "${LOOP_DEV}"p2
+		fi
 		rc=$?
 		if (( rc )); then
 			echo -e "${RED}Zerofree failed with rc $rc - skipping"
