@@ -15,7 +15,7 @@ GREEN='\033[1;32m'
 NOCOLOR='\033[0m'
 
 #Other variables
-version="v0.5.4"
+version="v24.11.03"
 CURRENT_DIR="$(pwd)"
 SCRIPTNAME="${0##*/}"
 LOGFILE="${CURRENT_DIR}/${SCRIPTNAME%.*}.log"
@@ -426,6 +426,9 @@ else
 	#Shrink filesystem
 	echo -e "${GREEN}Shrinking filesystem${NOCOLOR}"
 	# shellcheck disable=SC2086
+	if [ -z "$mountdir" ]; then
+		mountdir=$(mktemp -d)
+	fi
 	resize2fs -p "$loopback" $minsize
 	rc=$?
 	if (( $rc )); then
