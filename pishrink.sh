@@ -1,13 +1,21 @@
 #!/bin/bash
 # shellcheck disable=SC2004,SC2012,SC2181
 
+# Project: PiShrink
+# Description: PiShrink is a bash script that automatically shrink a pi image that will then resize to the max size of the SD card on boot.
+# Link: https://github.com/radio24/PiShrink
+#
+# The program presented here is a fork of Drewsif's PiShrink with some of codejedi365's and my own modifications.
+# Link to Drewsif's PiShrink: https://github.com/Drewsif/PiShrink
+# Link to codejedi365's PiShrink: https://github.com/codejedi365/PiShrink
+
 #Colors
 RED='\033[1;31m'
 GREEN='\033[1;32m'
 NOCOLOR='\033[0m'
 
 #Other variables
-version="v0.5.3"
+version="v0.5.4"
 CURRENT_DIR="$(pwd)"
 SCRIPTNAME="${0##*/}"
 LOGFILE="${CURRENT_DIR}/${SCRIPTNAME%.*}.log"
