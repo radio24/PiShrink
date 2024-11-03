@@ -400,35 +400,34 @@ fi
 minsize=$(cut -d ':' -f 2 <<< "$minsize" | tr -d ' ')
 logVariables $LINENO currentsize minsize
 if [[ $currentsize -eq $minsize ]]; then
-  echo -e "${RED}Image already shrunk to smallest size${NOCOLOR}"
-  exit 11
-fi
+  echo -e "${RED}Filesystem already shrunk to smallest size. Skipping filesystem shrinking.${NOCOLOR}"
+else
+	#Add some free space to the end of the filesystem
+	extra_space=$(($currentsize - $minsize))
+	logVariables $LINENO extra_space
+	for space in 5000 1000 100; do
+  	if [[ $extra_space -gt $space ]]; then
+    	minsize=$(($minsize + $space))
+    	break
+  	fi
+	done
+	logVariables $LINENO minsize
 
-#Add some free space to the end of the filesystem
-extra_space=$(($currentsize - $minsize))
-logVariables $LINENO extra_space
-for space in 5000 1000 100; do
-  if [[ $extra_space -gt $space ]]; then
-    minsize=$(($minsize + $space))
-    break
-  fi
-done
-logVariables $LINENO minsize
-
-#Shrink filesystem
-echo -e "${GREEN}Shrinking filesystem${NOCOLOR}"
-# shellcheck disable=SC2086
-resize2fs -p "$loopback" $minsize
-rc=$?
-if (( $rc )); then
-  echo -e "${RED}resize2fs failed with rc $rc${NOCOLOR}"
-  mount "$loopback" "$mountdir"
-  mv "$mountdir/etc/rc.local.bak" "$mountdir/etc/rc.local"
-  umount "$mountdir"
-  losetup -d "$loopback"
-  exit 12
+	#Shrink filesystem
+	echo -e "${GREEN}Shrinking filesystem${NOCOLOR}"
+	# shellcheck disable=SC2086
+	resize2fs -p "$loopback" $minsize
+	rc=$?
+	if (( $rc )); then
+  	echo -e "${RED}resize2fs failed with rc $rc${NOCOLOR}"
+  	mount "$loopback" "$mountdir"
+  	mv "$mountdir/etc/rc.local.bak" "$mountdir/etc/rc.local"
+  	umount "$mountdir"
+  	losetup -d "$loopback"
+  	exit 12
+	fi
+	sleep 1
 fi
-sleep 1
 
 #Shrink partition
 partnewsize=$(($minsize * $blocksize))
