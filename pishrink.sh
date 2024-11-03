@@ -11,7 +11,7 @@ version="v0.5.3"
 CURRENT_DIR="$(pwd)"
 SCRIPTNAME="${0##*/}"
 LOGFILE="${CURRENT_DIR}/${SCRIPTNAME%.*}.log"
-REQUIRED_TOOLS="parted losetup tune2fs md5sum e2fsck resize2fs"
+REQUIRED_TOOLS="parted losetup tune2fs e2fsck resize2fs"
 ZIPTOOLS=("gzip pigz xz")
 declare -A ZIP_PARALLEL_TOOL=( [gzip]="pigz" [xz]="xz" ) # parallel zip tool to use in parallel mode
 declare -A ZIP_PARALLEL_OPTIONS=( [pigz]="-f9" [xz]="-T0" ) # options for zip tools in parallel mode
@@ -76,15 +76,16 @@ function set_autoexpand() {
 	if [[ ! -f "$mountdir/etc/rc.local" ]]; then
 			info "An existing /etc/rc.local was not found, autoexpand may fail..."
 	fi
-	if [[ -f "$mountdir/etc/rc.local" ]] && [[ "$(md5sum "$mountdir/etc/rc.local" | cut -d ' ' -f 1)" != "5c286b336c0606ed8e6f87708f7802eb" ]]; then
+	if [[ -f "$mountdir/etc/rc.local" ]] && ! grep -q "## PiShrink https://github.com/radio24/PiShrink ##" "$mountdir/etc/rc.local"; then
     echo "Creating new /etc/rc.local"
   if [ -f "$mountdir/etc/rc.local" ]; then
     mv "$mountdir/etc/rc.local" "$mountdir/etc/rc.local.bak"
   fi
 
-    #####Do not touch the following lines#####
-cat <<\EOF1 > "$mountdir/etc/rc.local"
+#####Do not touch the following lines#####
+cat <<'EOFRC' > "$mountdir/etc/rc.local"
 #!/bin/bash
+## PiShrink https://github.com/radio24/PiShrink ##
 do_expand_rootfs() {
   ROOT_PART=$(mount | sed -n 's|^/dev/\(.*\) on / .*|\1|p')
 
@@ -143,8 +144,9 @@ if [[ -f /etc/rc.local.bak ]]; then
   /etc/rc.local
 fi
 exit 0
-EOF1
-    #####End no touch zone#####
+EOFRC
+#####End no touch zone#####
+
     chmod +x "$mountdir/etc/rc.local"
     fi
     umount "$mountdir"
