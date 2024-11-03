@@ -84,7 +84,7 @@ function set_autoexpand() {
 	if [[ ! -f "$mountdir/etc/rc.local" ]]; then
 			info "An existing /etc/rc.local was not found, autoexpand may fail..."
 	fi
-	if [[ -f "$mountdir/etc/rc.local" ]] && ! grep -q "## PiShrink https://github.com/radio24/PiShrink ##" "$mountdir/etc/rc.local"; then
+	if ! grep -q "## PiShrink https://github.com/Drewsif/PiShrink ##" "$mountdir/etc/rc.local"; then
     echo "Creating new /etc/rc.local"
   if [ -f "$mountdir/etc/rc.local" ]; then
     mv "$mountdir/etc/rc.local" "$mountdir/etc/rc.local.bak"
@@ -216,7 +216,7 @@ if [ "$debug" = true ]; then
 	exec 2> >(stdbuf -i0 -o0 -e0 tee -a "$LOGFILE" >&2)
 fi
 
-echo -e "${GREEN}${0##*/} $version${NOCOLOR}"
+echo -e "${GREEN}PiShrink $version - https://github.com/radio24/PiShrink\n{NOCOLOR}"
 
 #Args
 src="$1"
