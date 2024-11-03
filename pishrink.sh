@@ -427,42 +427,43 @@ else
   	exit 12
 	fi
 	sleep 1
-fi
 
-#Shrink partition
-partnewsize=$(($minsize * $blocksize))
-newpartend=$(($partstart + $partnewsize))
-logVariables $LINENO partnewsize newpartend
-parted -s -a minimal "$img" rm "$partnum"
-rc=$?
-if (( $rc )); then
-	echo -e "${RED}parted failed with rc $rc${NOCOLOR}"
-	exit 13
-fi
+	#Shrink partition
+	echo -e "${GREEN}Shrinking partition${NOCOLOR}"
+	partnewsize=$(($minsize * $blocksize))
+	newpartend=$(($partstart + $partnewsize))
+	logVariables $LINENO partnewsize newpartend
+	parted -s -a minimal "$img" rm "$partnum"
+	rc=$?
+	if (( $rc )); then
+		echo -e "${RED}parted failed with rc $rc${NOCOLOR}"
+		exit 13
+	fi
 
-parted -s "$img" unit B mkpart "$parttype" "$partstart" "$newpartend"
-rc=$?
-if (( $rc )); then
-	echo -e "${RED}parted failed with rc $rc${NOCOLOR}"
-	exit 14
-fi
+	parted -s "$img" unit B mkpart "$parttype" "$partstart" "$newpartend"
+	rc=$?
+	if (( $rc )); then
+		echo -e "${RED}parted failed with rc $rc${NOCOLOR}"
+		exit 14
+	fi
 
-#Truncate the file
-echo -e "${GREEN}Shrinking image${NOCOLOR}"
-endresult=$(parted -ms "$img" unit B print free)
-rc=$?
-if (( $rc )); then
-	echo -e "${RED}parted failed with rc $rc${NOCOLOR}"
-	exit 15
-fi
+	#Truncate the file
+	echo -e "${GREEN}Shrinking image${NOCOLOR}"
+	endresult=$(parted -ms "$img" unit B print free)
+	rc=$?
+	if (( $rc )); then
+		echo -e "${RED}parted failed with rc $rc${NOCOLOR}"
+		exit 15
+	fi
 
-endresult=$(tail -1 <<< "$endresult" | cut -d ':' -f 2 | tr -d 'B')
-logVariables $LINENO endresult
-truncate -s "$endresult" "$img"
-rc=$?
-if (( $rc )); then
-	echo -e "${RED}truncate failed with rc $rc${NOCOLOR}"
-	exit 16
+	endresult=$(tail -1 <<< "$endresult" | cut -d ':' -f 2 | tr -d 'B')
+	logVariables $LINENO endresult
+	truncate -s "$endresult" "$img"
+	rc=$?
+	if (( $rc )); then
+		echo -e "${RED}truncate failed with rc $rc${NOCOLOR}"
+		exit 16
+	fi
 fi
 
 # Using zerofree
