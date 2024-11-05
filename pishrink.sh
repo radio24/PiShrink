@@ -1,20 +1,28 @@
 #!/bin/bash
 # shellcheck disable=SC2004,SC2012,SC2181
 
+# Project: PiShrink
+# Description: PiShrink is a bash script that automatically shrink a pi image that will then resize to the max size of the SD card on boot.
+# Link: https://github.com/radio24/PiShrink
+#
+# The program presented here is a fork of Drewsif's PiShrink with some of codejedi365's and my own modifications.
+# Link to Drewsif's PiShrink: https://github.com/Drewsif/PiShrink
+# Link to codejedi365's PiShrink: https://github.com/codejedi365/PiShrink
+
 #Colors
 RED='\033[1;31m'
 GREEN='\033[1;32m'
 NOCOLOR='\033[0m'
 
 #Other variables
-version="v0.5.3"
+version="v24.11.03"
 CURRENT_DIR="$(pwd)"
 SCRIPTNAME="${0##*/}"
 LOGFILE="${CURRENT_DIR}/${SCRIPTNAME%.*}.log"
-REQUIRED_TOOLS="parted losetup tune2fs md5sum e2fsck resize2fs"
+REQUIRED_TOOLS="parted losetup tune2fs e2fsck resize2fs"
 ZIPTOOLS=("gzip pigz xz")
 declare -A ZIP_PARALLEL_TOOL=( [gzip]="pigz" [xz]="xz" ) # parallel zip tool to use in parallel mode
-declare -A ZIP_PARALLEL_OPTIONS=( [pigz]="-f9" [xz]="-T0" ) # options for zip tools in parallel mode
+declare -A ZIP_PARALLEL_OPTIONS=( [gzip]="-f9" [xz]="-9e -T0" ) # options for zip tools in parallel mode
 declare -A ZIPEXTENSIONS=( [gzip]="gz" [xz]="xz" ) # extensions of zipped files
 
 function cleanup() {
@@ -76,15 +84,16 @@ function set_autoexpand() {
 	if [[ ! -f "$mountdir/etc/rc.local" ]]; then
 			info "An existing /etc/rc.local was not found, autoexpand may fail..."
 	fi
-	if [[ -f "$mountdir/etc/rc.local" ]] && [[ "$(md5sum "$mountdir/etc/rc.local" | cut -d ' ' -f 1)" != "5c286b336c0606ed8e6f87708f7802eb" ]]; then
+	if ! grep -q "## PiShrink https://github.com/radio24/PiShrink ##" "$mountdir/etc/rc.local"; then
     echo "Creating new /etc/rc.local"
   if [ -f "$mountdir/etc/rc.local" ]; then
     mv "$mountdir/etc/rc.local" "$mountdir/etc/rc.local.bak"
   fi
 
-    #####Do not touch the following lines#####
-cat <<\EOF1 > "$mountdir/etc/rc.local"
+#####Do not touch the following lines#####
+cat <<'EOFRC' > "$mountdir/etc/rc.local"
 #!/bin/bash
+## PiShrink https://github.com/radio24/PiShrink ##
 do_expand_rootfs() {
   ROOT_PART=$(mount | sed -n 's|^/dev/\(.*\) on / .*|\1|p')
 
@@ -143,8 +152,9 @@ if [[ -f /etc/rc.local.bak ]]; then
   /etc/rc.local
 fi
 exit 0
-EOF1
-    #####End no touch zone#####
+EOFRC
+#####End no touch zone#####
+
     chmod +x "$mountdir/etc/rc.local"
     fi
     umount "$mountdir"
@@ -206,7 +216,7 @@ if [ "$debug" = true ]; then
 	exec 2> >(stdbuf -i0 -o0 -e0 tee -a "$LOGFILE" >&2)
 fi
 
-echo -e "${GREEN}${0##*/} $version${NOCOLOR}"
+echo -e "${GREEN}PiShrink $version - https://github.com/radio24/PiShrink\n{NOCOLOR}"
 
 #Args
 src="$1"
@@ -400,70 +410,73 @@ fi
 minsize=$(cut -d ':' -f 2 <<< "$minsize" | tr -d ' ')
 logVariables $LINENO currentsize minsize
 if [[ $currentsize -eq $minsize ]]; then
-  echo -e "${RED}Image already shrunk to smallest size${NOCOLOR}"
-  exit 11
-fi
+  echo -e "${RED}Filesystem already shrunk to smallest size. Skipping filesystem shrinking.${NOCOLOR}"
+else
+	#Add some free space to the end of the filesystem
+	extra_space=$(($currentsize - $minsize))
+	logVariables $LINENO extra_space
+	for space in 5000 1000 100; do
+  	if [[ $extra_space -gt $space ]]; then
+    	minsize=$(($minsize + $space))
+    	break
+  	fi
+	done
+	logVariables $LINENO minsize
 
-#Add some free space to the end of the filesystem
-extra_space=$(($currentsize - $minsize))
-logVariables $LINENO extra_space
-for space in 5000 1000 100; do
-  if [[ $extra_space -gt $space ]]; then
-    minsize=$(($minsize + $space))
-    break
-  fi
-done
-logVariables $LINENO minsize
+	#Shrink filesystem
+	echo -e "${GREEN}Shrinking filesystem${NOCOLOR}"
+	# shellcheck disable=SC2086
+	if [ -z "$mountdir" ]; then
+		mountdir=$(mktemp -d)
+	fi
+	resize2fs -p "$loopback" $minsize
+	rc=$?
+	if (( $rc )); then
+  	echo -e "${RED}resize2fs failed with rc $rc${NOCOLOR}"
+  	mount "$loopback" "$mountdir"
+  	mv "$mountdir/etc/rc.local.bak" "$mountdir/etc/rc.local"
+  	umount "$mountdir"
+  	losetup -d "$loopback"
+  	exit 12
+	fi
+	sleep 1
 
-#Shrink filesystem
-echo -e "${GREEN}Shrinking filesystem${NOCOLOR}"
-# shellcheck disable=SC2086
-resize2fs -p "$loopback" $minsize
-rc=$?
-if (( $rc )); then
-  echo -e "${RED}resize2fs failed with rc $rc${NOCOLOR}"
-  mount "$loopback" "$mountdir"
-  mv "$mountdir/etc/rc.local.bak" "$mountdir/etc/rc.local"
-  umount "$mountdir"
-  losetup -d "$loopback"
-  exit 12
-fi
-sleep 1
+	#Shrink partition
+	echo -e "${GREEN}Shrinking partition${NOCOLOR}"
+	partnewsize=$(($minsize * $blocksize))
+	newpartend=$(($partstart + $partnewsize))
+	logVariables $LINENO partnewsize newpartend
+	parted -s -a minimal "$img" rm "$partnum"
+	rc=$?
+	if (( $rc )); then
+		echo -e "${RED}parted failed with rc $rc${NOCOLOR}"
+		exit 13
+	fi
 
-#Shrink partition
-partnewsize=$(($minsize * $blocksize))
-newpartend=$(($partstart + $partnewsize))
-logVariables $LINENO partnewsize newpartend
-parted -s -a minimal "$img" rm "$partnum"
-rc=$?
-if (( $rc )); then
-	echo -e "${RED}parted failed with rc $rc${NOCOLOR}"
-	exit 13
-fi
+	parted -s "$img" unit B mkpart "$parttype" "$partstart" "$newpartend"
+	rc=$?
+	if (( $rc )); then
+		echo -e "${RED}parted failed with rc $rc${NOCOLOR}"
+		exit 14
+	fi
 
-parted -s "$img" unit B mkpart "$parttype" "$partstart" "$newpartend"
-rc=$?
-if (( $rc )); then
-	echo -e "${RED}parted failed with rc $rc${NOCOLOR}"
-	exit 14
-fi
+	#Truncate the file
+	echo -e "${GREEN}Shrinking image${NOCOLOR}"
+	endresult=$(parted -ms "$img" unit B print free)
+	rc=$?
+	if (( $rc )); then
+		echo -e "${RED}parted failed with rc $rc${NOCOLOR}"
+		exit 15
+	fi
 
-#Truncate the file
-echo -e "${GREEN}Shrinking image${NOCOLOR}"
-endresult=$(parted -ms "$img" unit B print free)
-rc=$?
-if (( $rc )); then
-	echo -e "${RED}parted failed with rc $rc${NOCOLOR}"
-	exit 15
-fi
-
-endresult=$(tail -1 <<< "$endresult" | cut -d ':' -f 2 | tr -d 'B')
-logVariables $LINENO endresult
-truncate -s "$endresult" "$img"
-rc=$?
-if (( $rc )); then
-	echo -e "${RED}truncate failed with rc $rc${NOCOLOR}"
-	exit 16
+	endresult=$(tail -1 <<< "$endresult" | cut -d ':' -f 2 | tr -d 'B')
+	logVariables $LINENO endresult
+	truncate -s "$endresult" "$img"
+	rc=$?
+	if (( $rc )); then
+		echo -e "${RED}truncate failed with rc $rc${NOCOLOR}"
+		exit 16
+	fi
 fi
 
 # Using zerofree
