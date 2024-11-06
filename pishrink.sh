@@ -216,7 +216,7 @@ if [ "$debug" = true ]; then
 	exec 2> >(stdbuf -i0 -o0 -e0 tee -a "$LOGFILE" >&2)
 fi
 
-echo -e "${GREEN}PiShrink $version - https://github.com/radio24/PiShrink\n{NOCOLOR}"
+echo -e "${GREEN}PiShrink $version - https://github.com/radio24/PiShrink\n${NOCOLOR}"
 
 #Args
 src="$1"
