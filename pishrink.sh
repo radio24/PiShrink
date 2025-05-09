@@ -312,7 +312,7 @@ parted_output="$(parted -ms "$img" unit B print)"
 rc=$?
 if (( $rc )); then
         if [[ $repair == true ]]; then
-            warn "Initial parted failed with rc $rc, trying to append 1024 sectors and retry..."
+            info "Initial parted failed with rc $rc, trying to append 1024 sectors and retry..."
             dd if=/dev/zero bs=512 count=1024 >> "$img"
             parted_output="$(parted -ms "$img" unit B print)"
             rc=$?
