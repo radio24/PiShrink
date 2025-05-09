@@ -311,9 +311,17 @@ beforesize="$(ls -lh "$img" | cut -d ' ' -f 5)"
 parted_output="$(parted -ms "$img" unit B print)"
 rc=$?
 if (( $rc )); then
-	error $LINENO "parted failed with rc $rc"
-	info "Possibly invalid image. Run 'parted $img unit B print' manually to investigate"
-	exit 6
+        if [[ $repair == true ]]; then
+            warn "Initial parted failed with rc $rc, trying to append 1024 sectors and retry..."
+            dd if=/dev/zero bs=512 count=1024 >> "$img"
+            parted_output="$(parted -ms "$img" unit B print)"
+            rc=$?
+	fi
+        if (( $rc )); then
+            error $LINENO "parted failed with rc $rc"
+            info "Possibly invalid image. Run 'parted $img unit B print' manually to investigate"
+            exit 6
+        fi
 fi
 partnum="$(echo "$parted_output" | tail -n 1 | cut -d ':' -f 1)"
 partstart="$(echo "$parted_output" | tail -n 1 | cut -d ':' -f 2 | tr -d 'B')"
