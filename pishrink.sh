@@ -88,6 +88,17 @@ function set_autoexpand() {
         return
     fi
 
+    if [[ -f "$mountdir/etc/systemd/system/dietpi-fs_partition_resize.service" ]]; then
+        target_dir="$mountdir/etc/systemd/system/local-fs.target.wants"
+        symlink="$target_dir/dietpi-fs_partition_resize.service"
+        mkdir -p "$target_dir"
+        if [[ ! -e "$symlink" ]]; then
+          ln -s ../dietpi-fs_partition_resize.service "$symlink"
+          info "DietPi detected -> Enabled dietpi-fs_partition_resize.service"
+        fi
+        return
+    fi
+    
     if [[ ! -f "$mountdir/etc/rc.local" ]]; then
         info "An existing /etc/rc.local was not found, autoexpand may fail..."
     fi
