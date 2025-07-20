@@ -81,6 +81,18 @@ function set_autoexpand() {
     umount "$mountdir"
     return
 	fi
+
+	if [[ -f "$mountdir/etc/systemd/system/dietpi-fs_partition_resize.service" ]]; then
+			target_dir="$mountdir/etc/systemd/system/local-fs.target.wants"
+			symlink="$target_dir/dietpi-fs_partition_resize.service"
+			mkdir -p "$target_dir"
+			if [[ ! -e "$symlink" ]]; then
+				ln -s ../dietpi-fs_partition_resize.service "$symlink"
+				info "DietPi detected -> Enabled dietpi-fs_partition_resize.service"
+			fi
+			return
+	fi
+
 	if [[ ! -f "$mountdir/etc/rc.local" ]]; then
 			info "An existing /etc/rc.local was not found, autoexpand may fail..."
 	fi
@@ -292,11 +304,18 @@ echo -e "${GREEN}Gathering data${NOCOLOR}"
 beforesize="$(du -h "$img" | cut -f -1)"
 parted_output="$(parted -ms "$img" unit B print)"
 rc=$?
+if [[ $repair == true ]]; then
+		info "Initial parted failed with rc $rc, trying to append 1024 sectors and retry..."
+		dd if=/dev/zero bs=512 count=1024 >> "$img"
+		parted_output="$(parted -ms "$img" unit B print)"
+		rc=$?
+fi
 if (( $rc )); then
 	echo -e "${RED}parted failed with rc $rc${NOCOLOR}"
 	echo -e "${RED}Possibly invalid image. Run 'parted $img unit B print' manually to investigate${NOCOLOR}"
 	exit 6
 fi
+
 partnum="$(echo "$parted_output" | tail -n 1 | cut -d ':' -f 1)"
 partstart="$(echo "$parted_output" | tail -n 1 | cut -d ':' -f 2 | tr -d 'B')"
 # WE HAVE TO FIX THAT - see https://www.shellcheck.net/wiki/SC2143
