@@ -14,6 +14,11 @@ RED='\033[1;31m'
 GREEN='\033[1;32m'
 NOCOLOR='\033[0m'
 
+# Identify the Operating System
+CHECK_OS="$(lsb_release -si)"
+CHECK_OS="$(echo "$CHECK_OS" | tail -n1)"
+if [ "$CHECK_OS" == "Debian" ] && [ -f /etc/rpi-issue ] ; then CHECK_OS="Raspbian" ; fi
+
 #Other variables
 version="v24.11.03"
 CURRENT_DIR="$(pwd)"
@@ -515,7 +520,18 @@ if [[ $zerofree == true ]]; then
 		done
 		if [[ $REPLY =~ ^[Yy]$ ]] ; then
 			echo -e "${GREEN}Installing zerofree${NOCOLOR}"
-			sudo apt-get install -y zerofree
+			if [ "$CHECK_OS" == "Raspbian" ]; then
+				sudo apt-get install -y git build-essential libext2fs-dev
+				SOURCE_DIR="$(pwd)"
+				mkdir -p ~/zerofree-src
+				cd ~/zerofree-src
+				git clone https://salsa.debian.org/debian/zerofree.git
+				cd zerofree
+				sudo install -m 755 zerofree /usr/local/sbin/zerofree
+				rm -rf ~/zerofree-src
+			else
+				sudo apt-get install -y zerofree
+			fi
 		else
 			echo -e "${RED}Cannot apply zerofree - skipping${NOCOLOR}"
 			echo ""
