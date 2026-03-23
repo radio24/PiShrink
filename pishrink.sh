@@ -484,22 +484,25 @@ else
 		exit 14
 	fi
 
-	#Truncate the file
-	echo -e "${GREEN}Shrinking image${NOCOLOR}"
+	#Truncate the image file
+	echo -e "${GREEN}Checking for unpartitioned space${NOCOLOR}"
 	endresult=$(parted -ms "$img" unit B print free)
 	rc=$?
 	if (( $rc )); then
 		echo -e "${RED}parted failed with rc $rc${NOCOLOR}"
 		exit 15
 	fi
-
-	endresult=$(tail -1 <<< "$endresult" | cut -d ':' -f 2 | tr -d 'B')
-	logVariables $LINENO endresult
-	truncate -s "$endresult" "$img"
-	rc=$?
-	if (( $rc )); then
-		echo -e "${RED}truncate failed with rc $rc${NOCOLOR}"
-		exit 16
+	endresult_last=$(tail -1 <<< "$endresult")
+	if [[ "$endresult_last" == *free\; ]]; then
+		echo -e "${GREEN}Truncating image${NOCOLOR}"
+  	endresult=$(cut -d ':' -f 2 <<< "$endresult_last" | tr -d 'B')
+		logVariables $LINENO endresult
+		truncate -s "$endresult" "$img"
+		rc=$?
+		if (( $rc )); then
+			echo -e "${RED}truncate failed with rc $rc${NOCOLOR}"
+			exit 16
+		fi
 	fi
 fi
 
