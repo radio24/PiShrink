@@ -20,7 +20,7 @@ CHECK_OS="$(echo "$CHECK_OS" | tail -n1)"
 if [ "$CHECK_OS" == "Debian" ] && [ -f /etc/rpi-issue ] ; then CHECK_OS="Raspbian" ; fi
 
 #Other variables
-version="v24.11.03"
+version="v26.03.23"
 CURRENT_DIR="$(pwd)"
 SCRIPTNAME="${0##*/}"
 LOGFILE="${CURRENT_DIR}/${SCRIPTNAME%.*}.log"
@@ -532,6 +532,7 @@ if [[ $zerofree == true ]]; then
 				cd zerofree
 				sudo install -m 755 zerofree /usr/local/sbin/zerofree
 				rm -rf ~/zerofree-src
+				cd $SOURCE_DIR
 			else
 				sudo apt-get install -y zerofree
 			fi
