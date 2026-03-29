@@ -531,6 +531,7 @@ if [[ $zerofree == true ]]; then
 				cd ~/zerofree-src
 				git clone https://salsa.debian.org/debian/zerofree.git
 				cd zerofree
+				make all
 				sudo install -m 755 zerofree /usr/local/sbin/zerofree
 				rm -rf ~/zerofree-src
 				cd $SOURCE_DIR
