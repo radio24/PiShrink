@@ -524,6 +524,7 @@ if [[ $zerofree == true ]]; then
 		if [[ $REPLY =~ ^[Yy]$ ]] ; then
 			echo -e "${GREEN}Installing zerofree${NOCOLOR}"
 			if [ "$CHECK_OS" == "Raspbian" ]; then
+				sudo apt-get update
 				sudo apt-get install -y git build-essential libext2fs-dev
 				SOURCE_DIR="$(pwd)"
 				mkdir -p ~/zerofree-src
